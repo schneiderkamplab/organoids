@@ -1,7 +1,5 @@
-import base64
 import click
 import exif
-import io
 import json
 import os
 import shapely
@@ -14,8 +12,8 @@ def _analyze():
     pass
 @_analyze.command()
 @click.argument("directory", type=click.Path(exists=True), nargs=-1)
-@click.option("--ext", "-e", default=".json", help="File extension to search for (default: .json)")
-@click.option("--exif-ext", "-e", default=".jpg", help="File extension to extract EXIF from (default: .jpg)")
+@click.option("--ext", default=".json", help="File extension to search for (default: .json)")
+@click.option("--exif-ext", default=".jpg", help="File extension to extract EXIF from (default: .jpg)")
 def analyze(directory, ext, exif_ext):
     start("Scanning for files")
     todo = list(directory)
