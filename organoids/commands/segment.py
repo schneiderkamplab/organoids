@@ -17,10 +17,11 @@ def _segment():
     pass
 @_segment.command()
 @click.argument("file-or-directory", type=click.Path(exists=True), nargs=-1)
+@click.option("--model", default="facebook/sam-vit-base", help="Model to use for segmentation (default: facebook/sam-vit-base)")
 @click.option("--ext", default=".jpg", help="File extension to search for (default: .jpg)")
 @click.option("--json-ext", default=".json", help="File extension to save meta data to (default: .json)")
 @click.option("--eps", default=0.001, help="Epsilon for polygon approximation (default: .001)")
-def segment(file_or_directory, ext, json_ext, eps):
+def segment(file_or_directory, model, ext, json_ext, eps):
     start("Scanning for files")
     todo = list(file_or_directory)
     found = []
@@ -30,6 +31,7 @@ def segment(file_or_directory, ext, json_ext, eps):
             found.append(file_or_directory)
         elif os.path.isdir(file_or_directory):
             todo.extend(os.path.join(file_or_directory, entry) for entry in os.listdir(file_or_directory))
+    found.sort()
     status(len(found), end='')
     end()
     meta = {}
@@ -52,13 +54,15 @@ def segment(file_or_directory, ext, json_ext, eps):
     status(len(meta), end='')
     end()
     start("Loading segmentation model")
-    generator = transformers.pipeline("mask-generation", model="facebook/sam-vit-huge", device="cpu")
+    generator = transformers.pipeline("mask-generation", model=model, device="cpu")
     end()
     start("Segmenting images")
     for entry in tqdm.tqdm(meta, desc="Segmenting images"):
+        width = meta[entry]["width"]
+        height = meta[entry]["height"]
         print(f"Segmenting {entry}")
         image = PIL.Image.open(entry).convert("RGB")
-        outputs = generator(image, points_per_batch=64, points_per_crop=8)
+        outputs = generator(image, points_per_batch=96, points_per_crop=24)
         masks = []
         for mask in outputs["masks"]:
             if any(row[0] for row in mask) or any(row[-1] for row in mask):
@@ -67,7 +71,7 @@ def segment(file_or_directory, ext, json_ext, eps):
             masked = sum(1 for row in mask for pixel in row if pixel)
             total = sum(len(row) for row in mask)
             if masked/total < 0.001:
-                print(f"Skipping as mask is less than 1% of total area: {masked/total*100}%")
+                print(f"Skipping as mask is less than 0.1% of total area: {masked/total*100}%")
                 continue
             if masked/total > 0.50:
                 print(f"Skipping as mask is more than 50% of total area: {masked/total*100}%")
@@ -84,10 +88,12 @@ def segment(file_or_directory, ext, json_ext, eps):
                 super_masks.append(m1)
         polygons = []
         for mask in super_masks:
-            masked_pixels = np.array(image)[mask]
+            image_pixels = np.array(image)
+            masked_pixels = image_pixels[mask]
             masked_pixels_mean = masked_pixels.mean()
-            if masked_pixels_mean >= 64:
-                print(f"Skipping as mask is too bright: {masked_pixels_mean}")
+            image_pixels_mean = image_pixels[height//3:2*height//3,width//3:2*width//3].mean()
+            if masked_pixels_mean >= 1.25*image_pixels_mean:
+                print(f"Skipping as mask is too bright: {masked_pixels_mean} vs ")
                 continue
             contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             obj = max(contours, key=cv2.contourArea)
@@ -98,7 +104,7 @@ def segment(file_or_directory, ext, json_ext, eps):
             center, _ = cv2.minEnclosingCircle(approx)
             distances = np.sqrt((approx_x-center[0])**2 + (approx_y-center[1])**2)
             min_dist, max_dist = distances.min(), distances.max()
-            if max_dist > 2*min_dist:
+            if max_dist > 2.5*min_dist:
                 print(f"Skipping as mask is too irregular: {max_dist/min_dist}")
                 continue
             poly = [
@@ -128,8 +134,8 @@ def segment(file_or_directory, ext, json_ext, eps):
             shapes=shapes,
             imagePath=imagePath,
             imageData=imageData,
-            imageHeight=meta[entry]["height"],
-            imageWidth=meta[entry]["width"],
+            imageHeight=height,
+            imageWidth=width,
             otherData=None,
             flags=flags,
         )
