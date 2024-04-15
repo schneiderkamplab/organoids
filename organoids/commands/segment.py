@@ -104,7 +104,7 @@ def segment(file_or_directory, model, ext, json_ext, eps):
             center, _ = cv2.minEnclosingCircle(approx)
             distances = np.sqrt((approx_x-center[0])**2 + (approx_y-center[1])**2)
             min_dist, max_dist = distances.min(), distances.max()
-            if max_dist > 2.5*min_dist:
+            if max_dist > 2*min_dist:
                 print(f"Skipping as mask is too irregular: {max_dist/min_dist}")
                 continue
             poly = [
