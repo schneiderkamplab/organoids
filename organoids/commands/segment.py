@@ -17,7 +17,8 @@ def _segment():
 @click.argument("file-or-directory", type=click.Path(exists=True), nargs=-1)
 @click.option("--ext", default=".jpg", help="File extension to search for (default: .jpg)")
 @click.option("--json-ext", default=".json", help="File extension to save meta data to (default: .json)")
-def segment(file_or_directory, ext, json_ext):
+@click.option("--eps", default=0.001, help="Epsilon for polygon approximation (default: .001)")
+def segment(file_or_directory, ext, json_ext, eps):
     start("Scanning for files")
     todo = list(file_or_directory)
     found = []
@@ -30,7 +31,7 @@ def segment(file_or_directory, ext, json_ext):
     status(len(found), end='')
     end()
     meta = {}
-    for entry in tqdm.tqdm(found, desc="Reading EXIF data and checking for user_comment field"):
+    for entry in tqdm.tqdm(found, desc="Reading EXIF data and checking for user_comments and pixel_dimension fields"):
         with open(entry, 'rb') as f:
             e = exif.Image(f)
             if e.has_exif:
@@ -50,26 +51,63 @@ def segment(file_or_directory, ext, json_ext):
         print(f"Segmenting {entry}")
         image = PIL.Image.open(entry).convert("RGB")
         outputs = generator(image, points_per_batch=64, points_per_crop=8)
-        polygons = []
+        masks = []
         for mask in outputs["masks"]:
             if any(row[0] for row in mask) or any(row[-1] for row in mask):
                 print("Skipping as mask touches left or right image border")
                 continue
             masked = sum(1 for row in mask for pixel in row if pixel)
             total = sum(len(row) for row in mask)
-            if masked/total < 0.01:
+            if masked/total < 0.001:
                 print(f"Skipping as mask is less than 1% of total area: {masked/total*100}%")
                 continue
             if masked/total > 0.50:
-                print(f"Warning: mask is more than 50% of total area: {masked/total*100}%")
+                print(f"Skipping as mask is more than 50% of total area: {masked/total*100}%")
+                continue
+            masks.append(mask)
+        super_masks = []
+        for i, m1 in enumerate(masks):
+            for j, m2 in enumerate(masks):
+                if i != j and m2[m1].all():
+                    print("Skipping as mask is subsumed by another mask")
+                    break
+            else:
+                super_masks.append(m1)
+        polygons = []
+        for mask in super_masks:
+            if any(row[0] for row in mask) or any(row[-1] for row in mask):
+                print("Skipping as mask touches left or right image border")
+                continue
+            masked = sum(1 for row in mask for pixel in row if pixel)
+            total = sum(len(row) for row in mask)
+            if masked/total < 0.001:
+                print(f"Skipping as mask is less than 1% of total area: {masked/total*100}%")
+                continue
+            if masked/total > 0.50:
+                print(f"Skipping as mask is more than 50% of total area: {masked/total*100}%")
                 continue
             print(f"Mask is {masked/total*100}% of total area")
-            contours, hierarchy = cv2.findContours(mask.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            for obj in contours:
-                poly = [
-                    [int(p[0][0]), int(p[0][1])] for p in obj
-                ]
-                polygons.append(poly)
+            masked_pixels = np.array(image)[mask]
+            masked_pixels_mean = masked_pixels.mean()
+            if masked_pixels_mean >= 64:
+                print(f"Skipping as mask is too bright: {masked_pixels_mean}")
+                continue
+            contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            obj = max(contours, key=cv2.contourArea)
+            peri = cv2.arcLength(obj, True)
+            approx = cv2.approxPolyDP(obj, eps*peri, True)
+            approx_x = approx[:,:,0]
+            approx_y = approx[:,:,1]
+            center, radius = cv2.minEnclosingCircle(approx)
+            distances = np.sqrt((approx_x-center[0])**2 + (approx_y-center[1])**2)
+            min_dist, max_dist = distances.min(), distances.max()
+            if max_dist > 2*min_dist:
+                print(f"Skipping as mask is too irregular: {max_dist/min_dist}")
+                continue
+            poly = [
+                [int(p[0][0]), int(p[0][1])] for p in approx
+            ]
+            polygons.append(poly)
         lf = labelme.LabelFile()
         shapes = [dict(
             label="auto",
