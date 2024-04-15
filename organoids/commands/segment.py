@@ -2,9 +2,11 @@ import PIL
 import click
 import cv2
 import exif
+import json
 import labelme
 import numpy as np
 import os
+import shapely
 import tqdm
 import transformers
 
@@ -35,8 +37,14 @@ def segment(file_or_directory, ext, json_ext, eps):
         with open(entry, 'rb') as f:
             e = exif.Image(f)
             if e.has_exif:
-                if hasattr(e, "pixel_x_dimension") and hasattr(e, "pixel_y_dimension"):
-                    meta[entry] = (e.pixel_x_dimension, e.pixel_y_dimension)
+                if hasattr(e, "pixel_x_dimension") and hasattr(e, "pixel_y_dimension") and hasattr(e, "user_comment"):
+                    user_comment = json.loads(e.user_comment)
+                    meta[entry] = dict(
+                        width=e.pixel_x_dimension,
+                        height=e.pixel_y_dimension,
+                        pix_size=user_comment["effectivePixelSize"],
+                        mag=user_comment["objectiveMag"],
+                    )
                 else:
                     print(f"Warning: {entry} has no pixel dimensions in EXIF data")
             else:
@@ -47,7 +55,7 @@ def segment(file_or_directory, ext, json_ext, eps):
     generator = transformers.pipeline("mask-generation", model="facebook/sam-vit-huge", device="cpu")
     end()
     start("Segmenting images")
-    for entry, (width, height) in tqdm.tqdm(meta.items(), desc="Segmenting images"):
+    for entry in tqdm.tqdm(meta, desc="Segmenting images"):
         print(f"Segmenting {entry}")
         image = PIL.Image.open(entry).convert("RGB")
         outputs = generator(image, points_per_batch=64, points_per_crop=8)
@@ -64,6 +72,7 @@ def segment(file_or_directory, ext, json_ext, eps):
             if masked/total > 0.50:
                 print(f"Skipping as mask is more than 50% of total area: {masked/total*100}%")
                 continue
+            print(f"Mask is {masked/total*100}% of total area")
             masks.append(mask)
         super_masks = []
         for i, m1 in enumerate(masks):
@@ -75,18 +84,6 @@ def segment(file_or_directory, ext, json_ext, eps):
                 super_masks.append(m1)
         polygons = []
         for mask in super_masks:
-            if any(row[0] for row in mask) or any(row[-1] for row in mask):
-                print("Skipping as mask touches left or right image border")
-                continue
-            masked = sum(1 for row in mask for pixel in row if pixel)
-            total = sum(len(row) for row in mask)
-            if masked/total < 0.001:
-                print(f"Skipping as mask is less than 1% of total area: {masked/total*100}%")
-                continue
-            if masked/total > 0.50:
-                print(f"Skipping as mask is more than 50% of total area: {masked/total*100}%")
-                continue
-            print(f"Mask is {masked/total*100}% of total area")
             masked_pixels = np.array(image)[mask]
             masked_pixels_mean = masked_pixels.mean()
             if masked_pixels_mean >= 64:
@@ -98,7 +95,7 @@ def segment(file_or_directory, ext, json_ext, eps):
             approx = cv2.approxPolyDP(obj, eps*peri, True)
             approx_x = approx[:,:,0]
             approx_y = approx[:,:,1]
-            center, radius = cv2.minEnclosingCircle(approx)
+            center, _ = cv2.minEnclosingCircle(approx)
             distances = np.sqrt((approx_x-center[0])**2 + (approx_y-center[1])**2)
             min_dist, max_dist = distances.min(), distances.max()
             if max_dist > 2*min_dist:
@@ -108,16 +105,21 @@ def segment(file_or_directory, ext, json_ext, eps):
                 [int(p[0][0]), int(p[0][1])] for p in approx
             ]
             polygons.append(poly)
+        areas = []
+        for poly in polygons:
+            poly = shapely.geometry.Polygon(poly)
+            area = poly.area*meta[entry]["pix_size"]/meta[entry]["mag"]
+            areas.append(area)
         lf = labelme.LabelFile()
         shapes = [dict(
             label="auto",
             points=poly,
             group_id=None,
-            description=None,
+            description=f"{area} mm²",
             shape_type="polygon",
             flags={},
             mask=None,
-        ) for poly in polygons]
+        ) for poly, area in zip(polygons, areas)]
         flags = {}
         imagePath = os.path.basename(entry)
         imageData = open(entry, 'rb').read()
@@ -126,8 +128,8 @@ def segment(file_or_directory, ext, json_ext, eps):
             shapes=shapes,
             imagePath=imagePath,
             imageData=imageData,
-            imageHeight=height,
-            imageWidth=width,
+            imageHeight=meta[entry]["height"],
+            imageWidth=meta[entry]["width"],
             otherData=None,
             flags=flags,
         )
