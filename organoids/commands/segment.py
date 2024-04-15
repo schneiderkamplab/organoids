@@ -21,7 +21,12 @@ def _segment():
 @click.option("--ext", default=".jpg", help="File extension to search for (default: .jpg)")
 @click.option("--json-ext", default=".json", help="File extension to save meta data to (default: .json)")
 @click.option("--eps", default=0.001, help="Epsilon for polygon approximation (default: .001)")
-def segment(file_or_directory, model, ext, json_ext, eps):
+@click.option("--points-per-crop", default=24, help="Number of points per crop (default: 24)")
+@click.option("--min-size", default=0.01, help="Minimum size of mask as fraction of total area (default: 0.01)")
+@click.option("--max-size", default=0.5, help="Maximum size of mask as fraction of total area (default: 0.5)")
+@click.option("--brightness-threshold", default=1.25, help="Brightness threshold for masks (default: 1.25)")
+@click.option("--regularity-threshold", default=2, help="Regularity threshold for masks (default: 2)")
+def segment(file_or_directory, model, ext, json_ext, eps, points_per_crop, min_size, max_size, brightness_threshold, regularity_threshold):
     start("Scanning for files")
     todo = list(file_or_directory)
     found = []
@@ -62,7 +67,7 @@ def segment(file_or_directory, model, ext, json_ext, eps):
         height = meta[entry]["height"]
         print(f"Segmenting {entry}")
         image = PIL.Image.open(entry).convert("RGB")
-        outputs = generator(image, points_per_batch=96, points_per_crop=24)
+        outputs = generator(image, points_per_batch=points_per_crop, points_per_crop=points_per_crop)
         masks = []
         for mask in outputs["masks"]:
             if any(row[0] for row in mask) or any(row[-1] for row in mask):
@@ -70,11 +75,11 @@ def segment(file_or_directory, model, ext, json_ext, eps):
                 continue
             masked = sum(1 for row in mask for pixel in row if pixel)
             total = sum(len(row) for row in mask)
-            if masked/total < 0.001:
-                print(f"Skipping as mask is less than 0.1% of total area: {masked/total*100}%")
+            if masked/total < min_size:
+                print(f"Skipping as mask is less than {min_size*100}% of total area: {masked/total*100}%")
                 continue
-            if masked/total > 0.50:
-                print(f"Skipping as mask is more than 50% of total area: {masked/total*100}%")
+            if masked/total > max_size:
+                print(f"Skipping as mask is more than {max_size*100}% of total area: {masked/total*100}%")
                 continue
             print(f"Mask is {masked/total*100}% of total area")
             masks.append(mask)
@@ -92,8 +97,8 @@ def segment(file_or_directory, model, ext, json_ext, eps):
             masked_pixels = image_pixels[mask]
             masked_pixels_mean = masked_pixels.mean()
             image_pixels_mean = image_pixels[height//3:2*height//3,width//3:2*width//3].mean()
-            if masked_pixels_mean >= 1.25*image_pixels_mean:
-                print(f"Skipping as mask is too bright: {masked_pixels_mean} vs ")
+            if masked_pixels_mean > brightness_threshold*image_pixels_mean:
+                print(f"Skipping as mask is too bright: {masked_pixels_mean} > {brightness_threshold} * {image_pixels_mean}")
                 continue
             contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             obj = max(contours, key=cv2.contourArea)
@@ -104,8 +109,8 @@ def segment(file_or_directory, model, ext, json_ext, eps):
             center, _ = cv2.minEnclosingCircle(approx)
             distances = np.sqrt((approx_x-center[0])**2 + (approx_y-center[1])**2)
             min_dist, max_dist = distances.min(), distances.max()
-            if max_dist > 2*min_dist:
-                print(f"Skipping as mask is too irregular: {max_dist/min_dist}")
+            if max_dist > regularity_threshold*min_dist:
+                print(f"Skipping as mask is too irregular: {max_dist/min_dist} > {regularity_threshold}")
                 continue
             poly = [
                 [int(p[0][0]), int(p[0][1])] for p in approx
