@@ -108,7 +108,7 @@ def segment(file_or_directory, ext, json_ext, eps):
         areas = []
         for poly in polygons:
             poly = shapely.geometry.Polygon(poly)
-            area = poly.area*meta[entry]["pix_size"]/meta[entry]["mag"]
+            area = poly.area*meta[entry]["pix_size"]/10**6/meta[entry]["mag"]
             areas.append(area)
         lf = labelme.LabelFile()
         shapes = [dict(
