@@ -22,7 +22,7 @@ def _segment():
 @click.option("--json-ext", default=".json", help="File extension to save meta data to (default: .json)")
 @click.option("--eps", default=0.001, help="Epsilon for polygon approximation (default: .001)")
 @click.option("--points-per-crop", default=24, help="Number of points per crop (default: 24)")
-@click.option("--min-size", default=0.01, help="Minimum size of mask as fraction of total area (default: 0.01)")
+@click.option("--min-size", default=0.001, help="Minimum size of mask as fraction of total area (default: 0.001)")
 @click.option("--max-size", default=0.5, help="Maximum size of mask as fraction of total area (default: 0.5)")
 @click.option("--brightness-threshold", default=1.25, help="Brightness threshold for masks (default: 1.25)")
 @click.option("--regularity-threshold", default=2, help="Regularity threshold for masks (default: 2)")
