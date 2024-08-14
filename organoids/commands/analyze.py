@@ -52,8 +52,14 @@ def analyze(directory, ext, exif_ext):
                         poly = shapely.geometry.Polygon(s["points"])
                         area = poly.area*pix_size/mag
                         s["description"] = f"{area:.2f} mm²"
+                        s["area"] = area
                 else:
                     print(f"Warning: {image_path} referenced from {entry} has no user_comment")
+                    for s in d["shapes"]:
+                        poly = shapely.geometry.Polygon(s["points"])
+                        area = poly.area
+                        s["description"] = f"{area:.2f}"
+                        s["area"] = area
             else:
                 print(f"Warning: {image_path} referenced from {entry} has no EXIF data")
         else:

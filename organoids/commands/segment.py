@@ -54,6 +54,12 @@ def segment(file_or_directory, model, ext, json_ext, eps, points_per_crop, min_s
                     )
                 else:
                     print(f"Warning: {entry} has no pixel dimensions in EXIF data")
+                    meta[entry] = dict(
+                        width=e.pixel_x_dimension,
+                        height=e.pixel_y_dimension,
+                        pix_size=1,
+                        mag=1,
+                    )
             else:
                 print(f"Warning: {entry} has no EXIF data")
     status(len(meta), end='')
