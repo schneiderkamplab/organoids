@@ -62,6 +62,14 @@ def segment(file_or_directory, model, ext, json_ext, eps, points_per_crop, min_s
                     )
             else:
                 print(f"Warning: {entry} has no EXIF data")
+                e = PIL.Image.open(f)
+                x_dimension, y_dimension = e.size
+                meta[entry] = dict(
+                    width=x_dimension,
+                    height=y_dimension,
+                    pix_size=1,
+                    mag=1,
+                )
     status(len(meta), end='')
     end()
     start("Loading segmentation model")
