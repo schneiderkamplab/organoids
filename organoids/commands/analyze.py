@@ -75,8 +75,9 @@ def analyze(directory, ext, exif_ext):
             poly = shapely.geometry.Polygon(s["points"])
             area = (poly.area * pix_size) / mag
             
-            # Update shape description to include area in the desired units
-            s["description"] = f"Area: {area:.2f} mm²" if exif_found else f"Area: {area:.2f} pixels²"
+            # Update shape label to include area in the desired units
+            area_label = f"Area: {area:.2f} mm²" if exif_found else f"Area: {area:.2f} pixels²"
+            s["label"] = f"{s['label']} ({area_label})"  # Append area to the label
             s["area"] = area
 
     end()
