@@ -4,12 +4,14 @@ import json
 import os
 import shapely
 import tqdm
+from PIL import Image  # New import for pixel data
 
 from ..utils import end, start, status
 
 @click.group()
 def _analyze():
     pass
+
 @_analyze.command()
 @click.argument("directory", type=click.Path(exists=True), nargs=-1)
 @click.option("--ext", default=".json", help="File extension to search for (default: .json)")
@@ -28,8 +30,9 @@ def analyze(directory, ext, exif_ext):
                 found.append(entry_path)
     status(len(found), end='')
     end()
+    
     data = {}
-    for entry in tqdm.tqdm(found, desc="Parsin JSON and checking for shapes data"):
+    for entry in tqdm.tqdm(found, desc="Parsing JSON and checking for shapes data"):
         with open(entry, 'rt') as f:
             d = json.load(f)
             if "shapes" in d:
@@ -38,36 +41,45 @@ def analyze(directory, ext, exif_ext):
                 print(f"Warning: {entry} has no shapes data")
     status(len(data), end='')
     end()
+    
     start("Computing areas")
     for entry, d in tqdm.tqdm(data.items(), desc="Computing areas"):
         image_path = os.path.join(os.path.dirname(entry), d["imagePath"])
+        
+        pix_size = None
+        mag = None
+        exif_found = False
+        
+        # Check if the image has EXIF data
         if image_path.endswith(exif_ext):
             e = exif.Image(open(image_path, 'rb'))
-            if e.has_exif:
-                if hasattr(e, "user_comment"):
-                    user_comment = json.loads(e.user_comment)
-                    pix_size = user_comment["effectivePixelSize"]/10**6
-                    mag = user_comment["objectiveMag"]
-                    for s in d["shapes"]:
-                        poly = shapely.geometry.Polygon(s["points"])
-                        area = poly.area*pix_size/mag
-                        s["description"] = f"{area:.2f} mm²"
-                        s["area"] = area
-                else:
-                    print(f"Warning: {image_path} referenced from {entry} has no user_comment")
-                    for s in d["shapes"]:
-                        poly = shapely.geometry.Polygon(s["points"])
-                        area = poly.area
-                        s["description"] = f"{area:.2f}"
-                        s["area"] = area
+            if e.has_exif and hasattr(e, "user_comment"):
+                exif_found = True
+                user_comment = json.loads(e.user_comment)
+                pix_size = user_comment["effectivePixelSize"] / 10**6
+                mag = user_comment["objectiveMag"]
             else:
-                print(f"Warning: {image_path} referenced from {entry} has no EXIF data")
-        else:
-            print(f"Skipping {image_path} referenced from {entry} as it does not end with {exif_ext}")
+                print(f"Warning: {image_path} referenced from {entry} has no valid EXIF data")
+
+        # If no valid EXIF data, use pixel-based fallback
+        if not exif_found:
+            with Image.open(image_path) as img:
+                width, height = img.size  # Get image dimensions
+                pixel_area = width * height  # Calculate total pixel area
+                pix_size = 1  # Assume each pixel has a size of 1 unit if no EXIF data
+                mag = 1  # Default to no magnification if not specified
+                print(f"Using pixel dimensions for {image_path}: {width}x{height} pixels")
+
+        # Compute areas using either EXIF data or pixel fallback
+        for s in d["shapes"]:
+            poly = shapely.geometry.Polygon(s["points"])
+            area = (poly.area * pix_size) / mag
+            s["description"] = f"{area:.2f} mm²" if exif_found else f"{area:.2f} pixels²"
+            s["area"] = area
+
     end()
     start("Writing areas to disk")
     for entry, d in tqdm.tqdm(data.items(), desc="Writing areas to disk"):
         with open(entry, 'wt') as f:
             json.dump(d, f, indent=2)
     end()
-    

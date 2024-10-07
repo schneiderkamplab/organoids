@@ -20,16 +20,17 @@ def _segment():
 @click.option("--model", default="facebook/sam-vit-base", help="Model to use for segmentation (default: facebook/sam-vit-base)")
 @click.option("--ext", default=".jpg", help="File extension to search for (default: .jpg)")
 @click.option("--json-ext", default=".json", help="File extension to save meta data to (default: .json)")
-@click.option("--eps", default=0.001, help="Epsilon for polygon approximation (default: .001)")
-@click.option("--points-per-crop", default=24, help="Number of points per crop (default: 24)")
-@click.option("--min-size", default=0.001, help="Minimum size of mask as fraction of total area (default: 0.001)")
-@click.option("--max-size", default=0.5, help="Maximum size of mask as fraction of total area (default: 0.5)")
-@click.option("--brightness-threshold", default=1.25, help="Brightness threshold for masks (default: 1.25)")
-@click.option("--regularity-threshold", default=2, help="Regularity threshold for masks (default: 2)")
+@click.option("--eps", default=0.0005, help="Epsilon for polygon approximation (default: .001)")
+@click.option("--points-per-crop", default=60, help="Number of points per crop (default: 24)")
+@click.option("--min-size", default=0.00005, help="Minimum size of mask as fraction of total area (default: 0.001)")
+@click.option("--max-size", default=0.35, help="Maximum size of mask as fraction of total area (default: 0.5)")
+@click.option("--brightness-threshold", default=1.5, help="Brightness threshold for masks (default: 1.25)")
+@click.option("--regularity-threshold", default=5, help="Regularity threshold for masks (default: 2)")
 def segment(file_or_directory, model, ext, json_ext, eps, points_per_crop, min_size, max_size, brightness_threshold, regularity_threshold):
     start("Scanning for files")
     todo = list(file_or_directory)
     found = []
+
     while todo:
         file_or_directory = todo.pop()
         if os.path.isfile(file_or_directory) and file_or_directory.endswith(ext):
@@ -159,4 +160,4 @@ def segment(file_or_directory, model, ext, json_ext, eps, points_per_crop, min_s
             flags=flags,
         )
     end()
-    
+
