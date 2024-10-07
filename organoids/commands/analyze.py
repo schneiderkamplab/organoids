@@ -4,7 +4,7 @@ import json
 import os
 import shapely
 import tqdm
-from PIL import Image  # New import for pixel data
+from PIL import Image  # For pixel data
 
 from ..utils import end, start, status
 
@@ -70,11 +70,13 @@ def analyze(directory, ext, exif_ext):
                 mag = 1  # Default to no magnification if not specified
                 print(f"Using pixel dimensions for {image_path}: {width}x{height} pixels")
 
-        # Compute areas using either EXIF data or pixel fallback
+        # Compute areas and update each shape's label
         for s in d["shapes"]:
             poly = shapely.geometry.Polygon(s["points"])
             area = (poly.area * pix_size) / mag
-            s["description"] = f"{area:.2f} mm²" if exif_found else f"{area:.2f} pixels²"
+            
+            # Update shape description to include area in the desired units
+            s["description"] = f"Area: {area:.2f} mm²" if exif_found else f"Area: {area:.2f} pixels²"
             s["area"] = area
 
     end()
