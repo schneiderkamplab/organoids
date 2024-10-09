@@ -6,6 +6,7 @@ import json
 import labelme
 import numpy as np
 import os
+import scipy.ndimage
 import shapely
 import tqdm
 import transformers
@@ -26,7 +27,9 @@ def _segment():
 @click.option("--max-size", default=0.35, help="Maximum size of mask as fraction of total area (default: 0.5)")
 @click.option("--brightness-threshold", default=1.5, help="Brightness threshold for masks (default: 1.25)")
 @click.option("--regularity-threshold", default=5, help="Regularity threshold for masks (default: 2)")
-def segment(file_or_directory, model, ext, json_ext, eps, points_per_crop, min_size, max_size, brightness_threshold, regularity_threshold):
+@click.option("--subsumption-threshold", default=0.9, help="Threshold for how much overlap with other circles(!) is tolerated (default: 0.9)")
+@click.option("--empty-threshold", default=128, help="Threshold for how dark pixels there should (default: 128)")
+def segment(file_or_directory, model, ext, json_ext, eps, points_per_crop, min_size, max_size, brightness_threshold, regularity_threshold, subsumption_threshold, empty_threshold):
     start("Scanning for files")
     todo = list(file_or_directory)
     found = []
@@ -111,6 +114,11 @@ def segment(file_or_directory, model, ext, json_ext, eps, points_per_crop, min_s
             image_pixels = np.array(image)
             masked_pixels = image_pixels[mask]
             masked_pixels_mean = masked_pixels.mean()
+            shrinked_mask = scipy.ndimage.binary_erosion(np.array(mask).astype(int), structure=np.ones((3,3)), iterations=10)
+            shrinked_pixels = image_pixels[shrinked_mask]
+            if len([pix for row in shrinked_pixels for pix in row if pix < empty_threshold]) < 10:
+                print(f"Skipping as masked area appears empty")
+                continue
             image_pixels_mean = image_pixels[height//3:2*height//3,width//3:2*width//3].mean()
             if masked_pixels_mean > brightness_threshold*image_pixels_mean:
                 print(f"Skipping as mask is too bright: {masked_pixels_mean} > {brightness_threshold} * {image_pixels_mean}")
@@ -131,6 +139,20 @@ def segment(file_or_directory, model, ext, json_ext, eps, points_per_crop, min_s
                 [int(p[0][0]), int(p[0][1])] for p in approx
             ]
             polygons.append(poly)
+        # compute overlap matrix
+        while True:
+            shapely_polygons = [shapely.geometry.Polygon(poly) for poly in polygons]
+            overlap_matrix = [[poly1.intersection(poly2).area/poly1.area for poly2 in shapely_polygons] for poly1 in shapely_polygons]
+            for i in range(len(overlap_matrix)):
+                overlap_matrix[i][i] = 0
+            print("\n".join(str(row) for row in overlap_matrix))
+            print(f"subsumption_threshold = {subsumption_threshold}")
+            print([sum(row) for row in overlap_matrix])
+            indices_to_delete = [i for i in range(len(polygons)) if sum(overlap_matrix[i]) >= subsumption_threshold and all(shapely_polygons[j].area < shapely_polygons[i].area for j in range(len(polygons)) if overlap_matrix[i][j] > 0)]
+            if not indices_to_delete:
+                break
+            print(f"Deleting {indices_to_delete[0]}")
+            del polygons[indices_to_delete[0]]
         areas = []
         for poly in polygons:
             poly = shapely.geometry.Polygon(poly)
