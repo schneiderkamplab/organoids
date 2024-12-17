@@ -4,8 +4,9 @@ import os
 import pickle
 import tqdm
 import transformers
-
-from ..utils import end, start, status
+import numpy as np
+import matplotlib.pyplot as plt
+from organoids.utils import end, start, status
 
 @click.group()
 def _segment():
@@ -14,10 +15,11 @@ def _segment():
 @click.argument("file-or-directory", type=click.Path(exists=True), nargs=-1)
 @click.option("--model", default="facebook/sam-vit-base", help="Model to use for segmentation (default: facebook/sam-vit-base)")
 @click.option("--ext", default=".jpg", help="File extension to search for (default: .jpg)")
+@click.option("--viz", default=True, help="Visualize)")
 @click.option("--pickle-ext", default=".pickle", help="File extension to save masks to (default: .pickle)")
 @click.option("--points-per-crop", default=60, help="Number of points per crop (default: 24)")
 @click.option("--device", default="cpu", help="Device to use for segmentation (cpu, mps, cuda) (default: cpu)")
-def segment(file_or_directory, model, ext, pickle_ext, points_per_crop, device):
+def segment(file_or_directory, model, ext, viz, pickle_ext, points_per_crop, device):
     start("Scanning for files")
     todo = list(file_or_directory)
     found = []
@@ -41,7 +43,31 @@ def segment(file_or_directory, model, ext, pickle_ext, points_per_crop, device):
         masks = []
         for mask in outputs["masks"]:
             masks.append(mask)
+
+        if viz:
+            plt.imshow(np.array(image))
+            ax = plt.gca()
+            for mask in outputs["masks"]:
+                show_mask(mask, ax=ax, random_color=True)
+            plt.axis("off")
+            plt.savefig(f"/Users/jacob/Documents/SDU_master/PROJECTS/organoids/organoids/commands/seg_outputs/{os.path.basename(entry)}")
+            
         pickle_path = os.path.splitext(entry)[0]+pickle_ext
         with open(pickle_path, 'wb') as f:
             pickle.dump(masks, f)
     end()
+
+
+def show_mask(mask, ax, random_color=False):
+    if random_color:
+        color = np.concatenate([np.random.random(3), np.array([0.6])], axis=0)
+    else:
+        color = np.array([30 / 255, 144 / 255, 255 / 255, 0.6])
+    h, w = mask.shape[-2:]
+    mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
+    ax.imshow(mask_image)
+
+
+if __name__ == "__main__":
+    print("HELLO")
+    segment()

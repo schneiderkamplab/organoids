@@ -11,7 +11,8 @@ import scipy.ndimage
 import shapely
 import tqdm
 
-from ..utils import end, start, status
+from organoids.utils import end, start, status
+
 
 @click.group()
 def _prune():
@@ -180,3 +181,7 @@ def prune(file_or_directory, ext, json_ext, pickle_ext, eps, min_size, max_size,
         )
     end()
 
+
+if __name__ == "__main__":
+    print("HELLO")
+    prune()
