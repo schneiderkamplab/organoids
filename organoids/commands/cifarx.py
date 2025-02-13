@@ -4,25 +4,24 @@ import copy
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.datasets import CIFAR10
-from torch.utils.data import Dataset, DataLoader 
-from torchvision import transforms
+from torch.utils.data import Dataset, DataLoader
+from torchvision.transforms import transforms
 import torch.optim as optim
 from tqdm import tqdm
 from PIL import Image
 
-
 class ExtendedMNISTDataset(Dataset):
-    def __init__(self, images, labels):
+    def __init__(self, images, labels, image_size=48):
         self.images = images
         self.labels = labels
         self.transform = transforms.Compose([
-            transforms.ToPILImage(),  # Convert tensor to PIL image, MNIST saved as tensors already
+            transforms.ToPILImage(),
             transforms.Grayscale(), 
-            transforms.Resize((28, 28)), 
+            transforms.Resize((image_size, image_size)), 
             transforms.RandomApply([
-                transforms.RandomRotation(degrees=(-15, 15)),
+                transforms.RandomRotation(degrees=(-25, 25)),
 
-            ], p=0.33),
+            ], p=0.4),
             transforms.ToTensor()
         ])
         
@@ -31,7 +30,6 @@ class ExtendedMNISTDataset(Dataset):
     
     def __getitem__(self, idx):
         return self.transform(self.images[idx]), self.labels[idx]
-        return self.images[idx], self.labels[idx]
     
 
 class CifarXModel(nn.Module):
@@ -40,8 +38,9 @@ class CifarXModel(nn.Module):
         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.fc1 = linear_layer_type(128 * 3 * 3, 512)
-        self.fc2 = linear_layer_type(512, 13) # 0-12
+        # self.fc1 = linear_layer_type(1153 * 3 * 3, 512)
+        self.fc1 = linear_layer_type(4608, 512)  # Adjusted input size
+        self.fc2 = linear_layer_type(512, 13) # cls. 0-12
         self.lr = lr
         self.wd = wd
 
@@ -63,7 +62,7 @@ class CifarXModel(nn.Module):
 
         self.transform = transforms.Compose([
             transforms.Grayscale(), 
-            transforms.Resize((28, 28)), # CHANGE
+            transforms.Resize((48, 48)), 
             transforms.ToTensor()
         ])
 
@@ -98,6 +97,7 @@ class CifarXModel(nn.Module):
         
         return predictions
         
+
 
 def train_model(model, train_loader, test_loader, optimizer, criterion, epochs, device):
     # Move model to the specified device (CPU or GPU)
@@ -152,9 +152,9 @@ def main():
     #test_dataset = CIFAR10(dataset_folder, train=False, download=True, transform=ToTensor())
     
     print("Loading extended MNIST dataset...")
-    data = torch.load('extended_mnist_dataset.pt')
-    
-    # Create dataset objects
+    data = torch.load('inverted_mnist_dataset.pt')
+
+
     train_dataset = ExtendedMNISTDataset(data['train_images'], data['train_labels'])
     test_dataset = ExtendedMNISTDataset(data['test_images'], data['test_labels'])
 
@@ -167,7 +167,7 @@ def main():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=model.lr, weight_decay=model.wd)
     
-    train_model(model, train_loader, test_loader, optimizer, criterion, epochs=10, device=device)
+    train_model(model, train_loader, test_loader, optimizer, criterion, epochs=30, device=device)
     torch.save({
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
@@ -177,3 +177,4 @@ def main():
 if __name__ == "__main__":
     print("[EXPERIMENT]")
     main()
+    # Epoch [10/10], Train Loss: 0.0187, Val Loss: 0.0316, Val Accuracy: 99.02%

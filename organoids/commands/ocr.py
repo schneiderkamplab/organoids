@@ -5,14 +5,11 @@ import numpy as np
 import os
 import scipy.ndimage
 import tqdm
-from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 from PIL import Image, ImageDraw
-from cifarx import CifarXModel
-import time 
-import cv2
-import pytesseract
+from .cifarx import CifarXModel
 
 from organoids.utils import end, start, status
+
 
 def polygon_to_binary_mask(polygon, image):
     # Convert polygon to list of pairs
@@ -79,8 +76,7 @@ def add_padding(image, padding=50):
     return padded_image
 
 
-
-def extract_masked_region(image: Image, binary_mask, verbose=True):
+def extract_masked_region(image: Image, binary_mask, verbose=False):
     # Convert binary_mask (PIL image) to a NumPy array
     binary_mask_np = np.array(binary_mask)
     
@@ -154,14 +150,11 @@ def ocr(directory, ext, exif_ext):
                 print(d["shapes"], d["imageWidth"], d["imageHeight"])
             else:
                 print(f"Warning: {entry} has no shapes data")
-    status(len(data), end='')
+    status(len(data), end='') 
     end()
-    
-    # processor = TrOCRProcessor.from_pretrained('microsoft/trocr-base-handwritten')
-    # model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-large-handwritten')
 
     cifar_model = CifarXModel()
-    cifar_model.load_state_dict(torch.load('/Users/jacob/Documents/SDU_master/PROJECTS/organoids/organoids/checkpoint.pth')['model_state_dict'])
+    cifar_model.load_state_dict(torch.load('organoids/commands/48_48_checkpointv2.pth')['model_state_dict'])
     
     start("Extracing masked regions and performing OCR")
     for entry, d in tqdm.tqdm(data.items(), desc="Performing OCR on masked regions"):
@@ -177,22 +170,19 @@ def ocr(directory, ext, exif_ext):
                 binary_mask = scipy.ndimage.binary_erosion(np.array(binary_mask).astype(int), structure=np.ones((3,3)), iterations=10)
                 result_image = extract_masked_region(image, binary_mask)    
                 result_image = result_image.convert('L')
-                result_image.save("grayscale.png")
+                #result_image.save("grayscale.png")
                 
-                # apply thresholding to get b/w image
                 binary_image = result_image.point(lambda x: 0 if x < 235 else 255, '1')
-                binary_image.save("black_white.png")
-                # padded_image = add_padding(binary_image, padding=200)
-                # padded_image.save("save_padded.png")
+                # binary_image.save("black_white.png")
                 
                 prediction = cifar_model.classify(binary_image) # not padded image 
-                print(f"Predicted digit: {prediction}")
-                time.sleep(3.5)
+                # print(f"Predicted digit: {prediction}")
+                # time.sleep(3.5)
     
                 cleaned_text = str(prediction).strip()
                 shape["label"] = f"{cleaned_text} [{prediction}]"
 
-                print("="*80)
+                # print("="*80)
     end()
     start("Writing recognized numbers to disk")
     for entry, d in tqdm.tqdm(data.items(), desc="Writing areas to disk"):

@@ -25,8 +25,7 @@ dependencies = [
     'opencv-python',
     'shapely',
     'torch',
-    'torchvision',
-    'transformers',
+    'torchvision',    'transformers',
 ]
 
 [project.urls]
