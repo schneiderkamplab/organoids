@@ -50,9 +50,10 @@ def segment(file_or_directory, model, ext, viz, pickle_ext, points_per_crop, dev
             for mask in outputs["masks"]:
                 show_mask(mask, ax=ax, random_color=True)
             plt.axis("off")
-            plt.savefig(f"/Users/jacob/Documents/SDU_master/PROJECTS/organoids/organoids/commands/seg_outputs/{os.path.basename(entry)}")
+            plt.savefig(f"/Users/jacobnielsen/Documents/PROJECTS/Projectives/organoids/organoids/commands/seg_outputs/{os.path.basename(entry)}")
             
         pickle_path = os.path.splitext(entry)[0]+pickle_ext
+        print("picked path: ", pickle_path)
         with open(pickle_path, 'wb') as f:
             pickle.dump(masks, f)
     end()

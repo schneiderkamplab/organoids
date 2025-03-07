@@ -3,13 +3,16 @@ import click
 import json
 import numpy as np
 import os
+import cv2
 import scipy.ndimage
 import tqdm
 from PIL import Image, ImageDraw
 from .cifarx import CifarXModel
+from shapely.geometry import Polygon, MultiPoint
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 
 from organoids.utils import end, start, status
-
+import time
 
 def polygon_to_binary_mask(polygon, image):
     # Convert polygon to list of pairs
@@ -75,8 +78,14 @@ def add_padding(image, padding=50):
     padded_image.paste(image, (padding, padding))
     return padded_image
 
+def smooth_edges(image, kernel_size):
+    """Smooths edges using Gaussian blur and morphological operations."""
+    blurred = cv2.GaussianBlur(image, (kernel_size, kernel_size), 0)
+    return blurred
 
-def extract_masked_region(image: Image, binary_mask, verbose=False):
+def extract_masked_region(image: Image, binary_mask, verbose):
+    image.save("before.png")
+
     # Convert binary_mask (PIL image) to a NumPy array
     binary_mask_np = np.array(binary_mask)
     
@@ -97,7 +106,7 @@ def extract_masked_region(image: Image, binary_mask, verbose=False):
     if verbose:
         Image.fromarray(cropped_image_np).save("before.png")
 
-    non_white = np.any(cropped_image_np < 240, axis=2)
+    non_white = np.any(cropped_image_np < 237, axis=2)
     rows = np.any(non_white, axis=1)
     cols = np.any(non_white, axis=0)
 
@@ -105,17 +114,14 @@ def extract_masked_region(image: Image, binary_mask, verbose=False):
     min_x, max_x = np.where(cols)[0][[0, -1]]
     
     cropped_image_np = cropped_image_np[min_y:max_y, min_x:max_x]
-    if verbose:
-        Image.fromarray(cropped_image_np).save("after.png")
 
-    resized_image = resize_image_pil(cropped_image_np, target_size=(128, 128))
+    resized_image = resize_image_pil(cropped_image_np, target_size=(48, 48))
     if verbose:
         resized_image.save("resized.png")
 
     # Step 6: Convert the result back to a PIL image
     # result_image = Image.fromarray(cropped_image_np)
     return  resized_image
-
 
 
 @click.group()
@@ -126,7 +132,9 @@ def _ocr():
 @click.argument("directory", type=click.Path(exists=True), nargs=-1)
 @click.option("--ext", default=".json", help="File extension to search for (default: .json)")
 @click.option("--exif-ext", default=".jpg", help="File extension to extract EXIF from (default: .jpg)")
-def ocr(directory, ext, exif_ext):
+@click.option("--verbose", default=True, help="Enable verbose output (default: True)")
+@click.option("--evaluate", default=None, type=click.Path(exists=True), help="Provide directory with GT JSON. Must have have name as images")
+def ocr(directory, ext, exif_ext, verbose, evaluate):
     start("Scanning for files")
     todo = list(directory)
     found = []
@@ -140,7 +148,7 @@ def ocr(directory, ext, exif_ext):
                 found.append(entry_path)
     status(len(found), end='')
     end()
-    
+
     data = {}
     for entry in tqdm.tqdm(found, desc="Parsing JSON and checking for shapes data"):
         with open(entry, 'rt') as f:
@@ -155,6 +163,9 @@ def ocr(directory, ext, exif_ext):
 
     cifar_model = CifarXModel()
     cifar_model.load_state_dict(torch.load('organoids/commands/48_48_checkpointv2.pth')['model_state_dict'])
+
+    processor = TrOCRProcessor.from_pretrained('microsoft/trocr-base-handwritten')
+    model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-large-handwritten')
     
     start("Extracing masked regions and performing OCR")
     for entry, d in tqdm.tqdm(data.items(), desc="Performing OCR on masked regions"):
@@ -163,29 +174,51 @@ def ocr(directory, ext, exif_ext):
         # Check if the image has EXIF data
         if image_path.endswith(exif_ext):
             image = Image.open(image_path)
-            # image.show()
+            
+            if evaluate:
+                gt_basename = image_path.replace(".jpg", ".json")
+                gt_path = os.path.join(evaluate, os.path.basename(gt_basename)) 
+                print("gt_path: ", gt_path)
+
+                with open(gt_path, 'rt') as f:
+                    gt = json.load(f)
+                    gt_shapes = gt["shapes"] # load all shapes from given images
+
             for i, shape in enumerate(d["shapes"]):
                 poly = shape["points"]
+                # print("PRED: ", poly['label'])
                 binary_mask = polygon_to_binary_mask(poly, image)
                 binary_mask = scipy.ndimage.binary_erosion(np.array(binary_mask).astype(int), structure=np.ones((3,3)), iterations=10)
-                result_image = extract_masked_region(image, binary_mask)    
-                result_image = result_image.convert('L')
-                #result_image.save("grayscale.png")
                 
-                binary_image = result_image.point(lambda x: 0 if x < 235 else 255, '1')
-                # binary_image.save("black_white.png")
+                print("image size: ", image.size)
+                print("binary mask size: ", binary_mask.shape)
                 
-                prediction = cifar_model.classify(binary_image) # not padded image 
-                # print(f"Predicted digit: {prediction}")
-                # time.sleep(3.5)
-    
-                cleaned_text = str(prediction).strip()
-                shape["label"] = f"{cleaned_text} [{prediction}]"
+                result_image = extract_masked_region(image, binary_mask, verbose=verbose)    
+                # result_image = result_image.convert('L')
+                # if verbose:
+                #     result_image.save("grayscale.png")
+                
+                # binary_image = result_image.point(lambda x: 0 if x < 235 else 255, '1')
+                # if verbose:
+                #     binary_image.save("black_white.png")
+                # prediction = cifar_model.classify(binary_image) # not padded image 
 
-                # print("="*80)
+                pixel_values = processor(images=result_image, return_tensors="pt").pixel_values
+                generated_ids = model.generate(pixel_values)
+                generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+                print(generated_text)
+                prediction = ''.join(x for x in generated_text if x.isdigit())
+
+                print(f"Predicted: {prediction}")
+
+                cleaned_text = str(prediction).strip()
+                # shape["label"] = f"{cleaned_text} [{prediction}]"
+                shape["label"] = f"{prediction}"
+
     end()
     start("Writing recognized numbers to disk")
     for entry, d in tqdm.tqdm(data.items(), desc="Writing areas to disk"):
+        print(f"entry: {entry}")
         with open(entry, 'wt') as f:
             json.dump(d, f, indent=2)
     end()
