@@ -1,10 +1,10 @@
-import os
+import click
 import itertools
 import json
-import click
-import tqdm
-import numpy as np
+import os
+import pandas as pd
 import shapely
+import tqdm
 
 from ..utils import end, start, status
 
@@ -68,13 +68,12 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator):
 
             # sort polygons by area in decreasing order
             poly_data.sort(key=lambda x: x['label'], reverse=True)
-            # average if there are multiple polygons with the same label
             new_poly_data = []
             for label, group in itertools.groupby(poly_data, key=lambda x: x['label']):
-                areas = [poly['area'] for poly in group]
-                if len(areas) > 1:
-                    print(f"Warning: {file} contains multiple polygons with the same label")
-                new_poly_data.append({'label': label, 'area': sum(areas)/len(areas)})
+                _areas = [poly['area'] for poly in group]
+                if len(_areas) > 1:
+                    print(f"Warning: {file} contains multiple polygons with the same label {label}")
+                new_poly_data.append({'label': label, 'area': sum(_areas)/len(_areas)})
             new_poly_data.sort(key=lambda x: x['area'], reverse=True)
             sorted_labels = [poly['label'] for poly in new_poly_data]
             while len(sorted_labels) < 12:
@@ -86,3 +85,8 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator):
 
             # write to CSV file
             f.write(f'"{id}"{separator}{areas}{separator}{ranks}{separator}{largest}\n')
+    end()
+    start("Exporting to Excel")
+    df = pd.read_csv(output, sep=separator, decimal=decimal_separator)
+    df.to_excel(output.replace(".csv", ".xlsx"), index=False)
+    end()
