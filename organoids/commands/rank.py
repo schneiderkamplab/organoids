@@ -1,4 +1,5 @@
 import os
+import itertools
 import json
 import click
 import tqdm
@@ -19,7 +20,7 @@ def load_json(file_path):
 @click.argument("directory", type=click.Path(exists=True))
 @click.argument("output", type=click.Path())
 @click.option("--ext", default=".json", help="File extension to search for (default: .json)")
-@click.option("--separator", default="\t", help="Separator for CSV file (default: tab).")
+@click.option("--separator", default=",", help="Separator for CSV file (default: ,).")
 @click.option("--id-separator", default="-kopi", help="Separator for id in file name (default: -kopi).")
 @click.option("--decimal-separator", default=".", help="Decimal separator for CSV file (default: .).")
 def rank(directory, output, ext, separator, id_separator, decimal_separator):
@@ -56,18 +57,26 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator):
                 label = shape['label'].replace("?", "")
                 poly = shapely.geometry.Polygon(shape['points'])
                 area = poly.area
-                poly_data.append({'label': label, 'area:': area})
+                poly_data.append({'label': label, 'area': area})
 
             # id from file name
             id = file.split("/")[-1].split(id_separator)[0]
 
             # list areas
-            label2area = {int(poly['label']): poly['area:'] for poly in poly_data}
+            label2area = {int(poly['label']): poly['area'] for poly in poly_data}
             areas = separator.join(str(label2area.get(i+1)).replace('.',decimal_separator) for i in range(12))
 
             # sort polygons by area in decreasing order
-            poly_data.sort(key=lambda x: x['area:'], reverse=True)
-            sorted_labels = [poly['label'] for poly in poly_data]
+            poly_data.sort(key=lambda x: x['label'], reverse=True)
+            # average if there are multiple polygons with the same label
+            new_poly_data = []
+            for label, group in itertools.groupby(poly_data, key=lambda x: x['label']):
+                areas = [poly['area'] for poly in group]
+                if len(areas) > 1:
+                    print(f"Warning: {file} contains multiple polygons with the same label")
+                new_poly_data.append({'label': label, 'area': sum(areas)/len(areas)})
+            new_poly_data.sort(key=lambda x: x['area'], reverse=True)
+            sorted_labels = [poly['label'] for poly in new_poly_data]
             while len(sorted_labels) < 12:
                 sorted_labels.append('')
             largest = separator.join(sorted_labels)
