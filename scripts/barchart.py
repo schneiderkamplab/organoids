@@ -11,7 +11,9 @@ from boxplot import FIELDS
 @click.argument("end", type=int)
 @click.option("--stacked", is_flag=True, default=False)
 @click.option("--sorted", is_flag=True, default=False)
-def barchart(file, start, end, stacked, sorted):
+@click.option("--output", default=None, type=click.Path())
+@click.option("--format", default="pdf")
+def barchart(file, start, end, stacked, sorted, output, format):
     df = pd.read_excel(file)
     d = df.iloc[:,start:end]
     counts_df = pd.DataFrame({col: df[col].value_counts().reindex(range(1,12+1), fill_value=0)
@@ -33,7 +35,10 @@ def barchart(file, start, end, stacked, sorted):
 
     plt.legend([f"top-{i}" for i in range(1, end-start+1)], title='Priorities')
     plt.tight_layout()
-    plt.show()
+    if output is None:
+        plt.show()
+    else:
+        plt.savefig(output, format=format)
 
 if __name__ == "__main__":
     barchart()

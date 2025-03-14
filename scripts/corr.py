@@ -10,7 +10,9 @@ from boxplot import FIELDS
 @click.argument("file", type=click.Path(exists=True))
 @click.argument("start", type=int)
 @click.argument("end", type=int)
-def corr(file, start, end):
+@click.option("--output", default=None, type=click.Path())
+@click.option("--format", default="pdf")
+def corr(file, start, end, output, format):
     df = pd.read_excel(file)
     selected_columns = df.iloc[:,start:end].columns.tolist()
     # Compute correlation matrix
@@ -31,7 +33,10 @@ def corr(file, start, end):
 
     plt.title('Correlation Matrix', pad=20)
     plt.tight_layout()
-    plt.show()
+    if output is None:
+        plt.show()
+    else:
+        plt.savefig(output, format=format)
 
 if __name__ == "__main__":
     corr()

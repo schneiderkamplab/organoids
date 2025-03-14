@@ -17,7 +17,9 @@ def clean(s):
 @click.option("--invert", is_flag=True, default=False)
 @click.option("--top-limit", type=float)
 @click.option("--sorted", is_flag=True, default=False)
-def boxplot(file, start, end, invert, top_limit, sorted):
+@click.option("--output", default=None, type=click.Path())
+@click.option("--format", default="pdf")
+def boxplot(file, start, end, invert, top_limit, sorted, output, format):
     df = pd.read_excel(file)
     d = df.iloc[:,start:end]
     if sorted:
@@ -35,7 +37,10 @@ def boxplot(file, start, end, invert, top_limit, sorted):
     if top_limit:
         plt.ylim(top=top_limit)
     plt.tight_layout()
-    plt.show()
+    if output is None:
+        plt.show()
+    else:
+        plt.savefig(output, format=format)
 
 if __name__ == "__main__":
     boxplot()

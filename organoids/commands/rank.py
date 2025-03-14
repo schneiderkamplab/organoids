@@ -23,7 +23,8 @@ def load_json(file_path):
 @click.option("--separator", default=",", help="Separator for CSV file (default: ,).")
 @click.option("--id-separator", default="-kopi", help="Separator for id in file name (default: -kopi).")
 @click.option("--decimal-separator", default=".", help="Decimal separator for CSV file (default: .).")
-def rank(directory, output, ext, separator, id_separator, decimal_separator):
+@click.option("--permutation", default=None, help="Permutation of labels as comma-separated list (default: None).")
+def rank(directory, output, ext, separator, id_separator, decimal_separator, permutation):
     start("Scanning for files")
     todo = [directory]
     found = []
@@ -55,6 +56,8 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator):
                     print(f"Warning: {file} contains shapes without label-key")
                     continue
                 label = shape['label'].replace("?", "")
+                if permutation is not None:
+                    label = permutation.split(",")[int(label)-1]
                 poly = shapely.geometry.Polygon(shape['points'])
                 area = poly.area
                 poly_data.append({'label': label, 'area': area})
