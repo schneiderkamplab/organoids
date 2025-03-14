@@ -3,7 +3,7 @@ import click
 import matplotlib.pyplot as plt
 import pandas as pd
 
-FIELDS = ["Friends", "Family", "Disease history", "Healthcare specialists", "Government", "Health information", "Educational background", "Foreign lanugages", "Digital technologies", "Money for services", "Money for healthy food", "Stress handling ability"]
+FIELDS = ["Friends", "Family", "Disease history", "Healthcare specialists", "Government", "Health information", "Educational background", "Foreign languages", "Digital technologies", "Money for services", "Money for healthy food", "Stress handling ability"]
 
 def clean(s):
     while s[0].isalpha():
