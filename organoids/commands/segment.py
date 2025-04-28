@@ -2,6 +2,7 @@ import PIL
 import click
 import os
 import pickle
+import torch
 import tqdm
 import transformers
 import numpy as np
@@ -20,6 +21,7 @@ def _segment():
 @click.option("--points-per-crop", default=60, help="Number of points per crop (default: 24)")
 @click.option("--device", default="cpu", help="Device to use for segmentation (cpu, mps, cuda) (default: cpu)")
 def segment(file_or_directory, model, ext, viz, pickle_ext, points_per_crop, device):
+    backend = getattr(torch, device.split(":")[0])
     start("Scanning for files")
     todo = list(file_or_directory)
     found = []
@@ -33,7 +35,7 @@ def segment(file_or_directory, model, ext, viz, pickle_ext, points_per_crop, dev
     status(len(found), end='')
     end()
     start("Loading segmentation model")
-    generator = transformers.pipeline("mask-generation", model=model, device=device)
+    generator = transformers.pipeline("mask-generation", model=model, device=device, torch_dtype=torch.float32)
     end()
     start("Segmenting images")
     for entry in tqdm.tqdm(found, desc="Segmenting images"):
@@ -56,6 +58,11 @@ def segment(file_or_directory, model, ext, viz, pickle_ext, points_per_crop, dev
         print("picked path: ", pickle_path)
         with open(pickle_path, 'wb') as f:
             pickle.dump(masks, f)
+        del outputs
+        del masks
+        del image
+        gc.collect()
+        backend.empty_cache()
     end()
 
 

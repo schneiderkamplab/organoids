@@ -2,6 +2,7 @@ import torch
 import click
 import json
 import numpy as np
+import re
 import os
 import cv2
 import scipy.ndimage
@@ -106,6 +107,10 @@ def extract_masked_region(image: Image, binary_mask, verbose):
     if verbose:
         Image.fromarray(cropped_image_np).save("before.png")
 
+    print("Cropped image size: ", cropped_image_np.shape)
+    if len(cropped_image_np.shape) == 2:
+        cropped_image_np = np.stack([cropped_image_np] * 3, axis=-1)
+        print("Corrected cropped image size: ", cropped_image_np.shape)
     non_white = np.any(cropped_image_np < 237, axis=2)
     rows = np.any(non_white, axis=1)
     cols = np.any(non_white, axis=0)
@@ -161,8 +166,8 @@ def ocr(directory, ext, exif_ext, verbose, evaluate):
     status(len(data), end='') 
     end()
 
-    cifar_model = CifarXModel()
-    cifar_model.load_state_dict(torch.load('organoids/commands/48_48_checkpointv2.pth')['model_state_dict'])
+#    cifar_model = CifarXModel()
+#    cifar_model.load_state_dict(torch.load('organoids/commands/48_48_checkpointv2.pth')['model_state_dict'])
 
     processor = TrOCRProcessor.from_pretrained('microsoft/trocr-base-handwritten')
     model = VisionEncoderDecoderModel.from_pretrained('microsoft/trocr-large-handwritten')
@@ -207,7 +212,18 @@ def ocr(directory, ext, exif_ext, verbose, evaluate):
                 generated_ids = model.generate(pixel_values)
                 generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
                 print(generated_text)
+                generated_text = generated_text.replace("I", "1")
+                generated_text = generated_text.replace("l", "1")
+                generated_text = generated_text.replace("S", "5")
+                generated_text = generated_text.replace("s", "5")
+                generated_text = generated_text.replace("Z", "2")
+                generated_text = generated_text.replace("z", "2")
+                generated_text = generated_text.replace("B", "8")
+                generated_text = generated_text.replace("g", "9")
+                generated_text = generated_text.replace("G", "6")
                 prediction = ''.join(x for x in generated_text if x.isdigit())
+                if prediction != "11":
+                    prediction = re.sub(r'(.)\1', r'\1', prediction)
 
                 print(f"Predicted: {prediction}")
 

@@ -46,7 +46,7 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator, per
             if "shapes" not in data.keys():
                 print(f"Warning: {file} has no shapes data")
                 continue
-            if not "kopi" in file:
+            if not id_separator in file:
                 print(f"Warning: {file} does not have the expected name format ID{id_separator}.json")
                 continue
             poly_data = []
@@ -56,11 +56,23 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator, per
                     print(f"Warning: {file} contains shapes without label-key")
                     continue
                 label = shape['label'].replace("?", "")
-                if permutation is not None:
-                    label = permutation.split(",")[int(label)-1]
-                poly = shapely.geometry.Polygon(shape['points'])
-                area = poly.area
-                poly_data.append({'label': label, 'area': area})
+                labels = label.split(",")
+                if len(labels) > 1:
+                    print(f"Warning: {file} contains invalid label {label}")
+                for label in labels:
+                    if permutation is not None:
+                        try:
+                            label = permutation.split(",")[int(label)-1]
+                        except ValueError:
+                            print(f"Warning: {file} contains invalid label {label}")
+                            continue
+                    try:
+                        poly = shapely.geometry.Polygon(shape['points'])
+                    except ValueError:
+                        print(f"Warning: {file} contains invalid polygon {shape['points']}")
+                        continue
+                    area = poly.area
+                    poly_data.append({'label': label, 'area': area})
 
             # id from file name
             id = file.split("/")[-1].split(id_separator)[0]
@@ -75,7 +87,7 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator, per
             for label, group in itertools.groupby(poly_data, key=lambda x: x['label']):
                 _areas = [poly['area'] for poly in group]
                 if len(_areas) > 1:
-                    print(f"Warning: {file} contains multiple polygons with the same label {label}")
+                    print(f"Warning: {file} contains multiple polygons with the same label {label}: {len(_areas)-1} extra labels")
                 new_poly_data.append({'label': label, 'area': sum(_areas)/len(_areas)})
             new_poly_data.sort(key=lambda x: x['area'], reverse=True)
             sorted_labels = [poly['label'] for poly in new_poly_data]

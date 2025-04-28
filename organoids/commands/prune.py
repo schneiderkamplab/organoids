@@ -46,8 +46,11 @@ def prune(file_or_directory, ext, json_ext, pickle_ext, eps, min_size, max_size,
     meta = {}
     for entry in tqdm.tqdm(found, desc="Reading EXIF data and checking for user_comments and pixel_dimension fields"):
         with open(entry, 'rb') as f:
-            e = exif.Image(f)
-            if e.has_exif:
+            try:
+                e = exif.Image(f)
+            except:
+                e = None
+            if e is not None and e.has_exif:
                 if hasattr(e, "pixel_x_dimension") and hasattr(e, "pixel_y_dimension") and hasattr(e, "user_comment"):
                     user_comment = json.loads(e.user_comment)
                     meta[entry] = dict(
