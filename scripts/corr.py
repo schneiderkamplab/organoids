@@ -16,7 +16,7 @@ from boxplot import FIELDS
 @click.option("--prefixes", type=str, default=None)
 @click.option("--min-age", type=int, default=None)
 @click.option("--max-age", type=int, default=None)
-def corr(file, start, end, output, format, gender, prefixes):
+def corr(file, start, end, output, format, gender, prefixes, min_age, max_age):
     df = pd.read_excel(file)
     if gender is not None:
         df = df[df['gender'] == gender]
