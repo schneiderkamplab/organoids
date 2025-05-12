@@ -12,14 +12,26 @@ from boxplot import FIELDS
 @click.argument("end", type=int)
 @click.option("--output", default=None, type=click.Path())
 @click.option("--format", default="pdf")
-def corr(file, start, end, output, format):
+@click.option("--gender", default=None, type=int)
+@click.option("--prefixes", type=str, default=None)
+def corr(file, start, end, output, format, gender, prefixes):
     df = pd.read_excel(file)
+    if gender is not None:
+        df = df[df['gender'] == gender]
+    if prefixes is not None:
+        prefixes = prefixes.split(",")
+        mask = df["id"].str.startswith(tuple(prefixes))
+        df = df.loc[mask]
     selected_columns = df.iloc[:,start:end].columns.tolist()
+    selected_columns.append("age")
+    selected_columns.append("gender")
+    FIELDS.append("age")
+    FIELDS.append("gender")
     # Compute correlation matrix
     corr_matrix = df[selected_columns].corr()
 
     # Plot correlation matrixs
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(12, 9))
     cax = ax.matshow(corr_matrix, cmap='coolwarm')
     fig.colorbar(cax)
 

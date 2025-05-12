@@ -13,8 +13,16 @@ from boxplot import FIELDS
 @click.option("--sorted", is_flag=True, default=False)
 @click.option("--output", default=None, type=click.Path())
 @click.option("--format", default="pdf")
-def barchart(file, start, end, stacked, sorted, output, format):
+@click.option("--gender", default=None, type=int)
+@click.option("--prefixes", type=str, default=None)
+def barchart(file, start, end, stacked, sorted, output, format, gender, prefixes):
     df = pd.read_excel(file)
+    if gender is not None:
+        df = df[df['gender'] == gender]
+    if prefixes is not None:
+        prefixes = prefixes.split(",")
+        mask = df["id"].str.startswith(tuple(prefixes))
+        df = df.loc[mask]
     d = df.iloc[:,start:end]
     counts_df = pd.DataFrame({col: df[col].value_counts().reindex(range(1,12+1), fill_value=0)
                             for col in d.columns.tolist()})

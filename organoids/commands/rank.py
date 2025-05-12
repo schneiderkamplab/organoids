@@ -24,7 +24,11 @@ def load_json(file_path):
 @click.option("--id-separator", default="-kopi", help="Separator for id in file name (default: -kopi).")
 @click.option("--decimal-separator", default=".", help="Decimal separator for CSV file (default: .).")
 @click.option("--permutation", default=None, help="Permutation of labels as comma-separated list (default: None).")
-def rank(directory, output, ext, separator, id_separator, decimal_separator, permutation):
+@click.option("--age-gender", default=None, help="Extra columns for age and gender as json mapping (default: None).")
+@click.option("--exclude", type=click.Path(), help="Exclude files as comma-separated list (default: None).")
+def rank(directory, output, ext, separator, id_separator, decimal_separator, permutation, age_gender, exclude):
+    if exclude is not None:
+        exclude = exclude.split(",")
     start("Scanning for files")
     todo = [directory]
     found = []
@@ -35,12 +39,19 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator, per
             if os.path.isdir(entry_path):
                 todo.append(entry_path)
             elif entry.endswith(ext):
+                if exclude is not None and any(ex in entry for ex in exclude):
+                    print(f"Excluding {entry}")
+                    continue
                 found.append(entry_path)
     status(len(found), end='')
     end()
     start("Computing rank")
     with open(output, "w") as f:
-        f.write(f"id{separator}{separator.join([f'area{i+1}' for i in range(12)])}{separator}{separator.join([f'rank{i+1}' for i in range(12)])}{separator}{separator.join([f'largest{i+1}' for i in range(12)])}\n")
+        header = f"id{separator}{separator.join([f'area{i+1}' for i in range(12)])}{separator}{separator.join([f'rank{i+1}' for i in range(12)])}{separator}{separator.join([f'largest{i+1}' for i in range(12)])}"
+        if age_gender is not None:
+            age_gender = json.load(open(age_gender, "rt"))
+            header += f"{separator}age{separator}gender"
+        f.write(f"{header}\n")
         for file in tqdm.tqdm(found):
             data = load_json(file)
             if "shapes" not in data.keys():
@@ -99,7 +110,11 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator, per
             ranks = separator.join((str(sorted_labels.index(str(i+1))+1) if str(i+1) in sorted_labels else '') for i in range(12))
 
             # write to CSV file
-            f.write(f'"{id}"{separator}{areas}{separator}{ranks}{separator}{largest}\n')
+            line = f'"{id}"{separator}{areas}{separator}{ranks}{separator}{largest}'
+            if age_gender is not None:
+                meta = age_gender.get(id, {})
+                line += f"{separator}{meta.get('age', '')}{separator}{meta.get('gender', 0)}"
+            f.write(f"{line}\n")
     end()
     start("Exporting to Excel")
     df = pd.read_csv(output, sep=separator, decimal=decimal_separator)

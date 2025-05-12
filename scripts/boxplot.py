@@ -19,8 +19,22 @@ def clean(s):
 @click.option("--sorted", is_flag=True, default=False)
 @click.option("--output", default=None, type=click.Path())
 @click.option("--format", default="pdf")
-def boxplot(file, start, end, invert, top_limit, sorted, output, format):
+@click.option("--gender", default=None, type=int)
+@click.option("--prefixes", type=str, default=None)
+@click.option("--min-age", type=int, default=None)
+@click.option("--max-age", type=int, default=None)
+def boxplot(file, start, end, invert, top_limit, sorted, output, format, gender, prefixes, min_age, max_age):
     df = pd.read_excel(file)
+    if gender is not None:
+        df = df[df['gender'] == gender]
+    if min_age is not None:
+        df = df[df['age'] >= min_age]
+    if max_age is not None:
+        df = df[df['age'] <= max_age]
+    if prefixes is not None:
+        prefixes = prefixes.split(",")
+        mask = df["id"].str.startswith(tuple(prefixes))
+        df = df.loc[mask]
     d = df.iloc[:,start:end]
     if sorted:
         column2field = {i+1: field for i, field in enumerate(FIELDS)}

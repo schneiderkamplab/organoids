@@ -1,5 +1,6 @@
 import PIL
 import click
+import gc
 import os
 import pickle
 import torch
