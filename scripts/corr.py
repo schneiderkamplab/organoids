@@ -14,10 +14,16 @@ from boxplot import FIELDS
 @click.option("--format", default="pdf")
 @click.option("--gender", default=None, type=int)
 @click.option("--prefixes", type=str, default=None)
+@click.option("--min-age", type=int, default=None)
+@click.option("--max-age", type=int, default=None)
 def corr(file, start, end, output, format, gender, prefixes):
     df = pd.read_excel(file)
     if gender is not None:
         df = df[df['gender'] == gender]
+    if min_age is not None:
+        df = df[df['age'] >= min_age]
+    if max_age is not None:
+        df = df[df['age'] <= max_age]
     if prefixes is not None:
         prefixes = prefixes.split(",")
         mask = df["id"].str.startswith(tuple(prefixes))
