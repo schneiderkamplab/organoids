@@ -26,8 +26,11 @@ def load_json(file_path):
 @click.option("--permutation", default=None, help="Permutation of labels as comma-separated list (default: None).")
 @click.option("--age-gender", default=None, help="Extra columns for age and gender as json mapping (default: None).")
 @click.option("--exclude", type=click.Path(), help="Exclude files as comma-separated list (default: None).")
-@click.option("--ensure-prefix", default=None, help="Ensure that id starts with this, adding if necessary (default: None).")
-def rank(directory, output, ext, separator, id_separator, decimal_separator, permutation, age_gender, exclude, ensure_prefix):
+@click.option("--require-prefix", default=None, help="Require that id starts with this, adding add-prefix if necessary (default: None).")
+@click.option("--add-prefix", default=None, help="Add if id does not have required prefix (default: None).")
+def rank(directory, output, ext, separator, id_separator, decimal_separator, permutation, age_gender, exclude, require_prefix, add_prefix):
+    if require_prefix is not None and add_prefix is None:
+        add_prefix = require_prefix
     if exclude is not None:
         exclude = exclude.split(",")
     start("Scanning for files")
@@ -88,8 +91,8 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator, per
 
             # id from file name
             id = file.split("/")[-1].rsplit(id_separator, maxsplit=1)[0]
-            if ensure_prefix and not id.startswith(ensure_prefix):
-                id = f"{ensure_prefix}{id}"
+            if require_prefix and not id.startswith(require_prefix):
+                id = f"{add_prefix}{id}"
 
             # list areas
             label2area = {int(poly['label']): poly['area'] for poly in poly_data}
