@@ -32,6 +32,9 @@ dependencies = [
 "Homepage" = "https://github.com/schneiderkamplab/organoids"
 "Bug Tracker" = "https://github.com/schneiderkamplab/organoids/issues"
 
+[project.scripts]
+organoids = "organoids.__main__:cli"
+
 [tool.hatch.build]
 include = [
     'organoids',
