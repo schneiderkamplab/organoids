@@ -86,7 +86,7 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator, per
                     poly_data.append({'label': label, 'area': area})
 
             # id from file name
-            id = file.split("/")[-1].split(id_separator)[0]
+            id = file.split("/")[-1].rsplit(id_separator, maxsplit=1)[0]
 
             # list areas
             label2area = {int(poly['label']): poly['area'] for poly in poly_data}

@@ -42,7 +42,8 @@ def barchart(file, start, end, stacked, sorted, output, format, gender, prefixes
     ax = counts_df.plot(kind='bar', stacked=stacked, figsize=(12, 7))
 
     plt.title('Top health priorities')
-    plt.ylabel('Count')
+    plt.xlabel('')
+    plt.ylabel('')
     plt.xticks(rotation=45)
     ax.set_xticklabels(fields)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
@@ -53,6 +54,7 @@ def barchart(file, start, end, stacked, sorted, output, format, gender, prefixes
         plt.show()
     else:
         plt.savefig(output, format=format)
+        print(f"Saved to {output}")
 
 if __name__ == "__main__":
     barchart()

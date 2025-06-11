@@ -38,7 +38,7 @@ def corr(file, start, end, output, format, gender, prefixes, min_age, max_age):
 
     # Plot correlation matrixs
     fig, ax = plt.subplots(figsize=(12, 9))
-    cax = ax.matshow(corr_matrix, cmap='coolwarm')
+    cax = ax.matshow(corr_matrix, cmap='coolwarm', vmin=-1, vmax=1)
     fig.colorbar(cax)
 
     ax.set_xticks(range(len(selected_columns)))
@@ -55,6 +55,7 @@ def corr(file, start, end, output, format, gender, prefixes, min_age, max_age):
         plt.show()
     else:
         plt.savefig(output, format=format)
+        print(f"Saved to {output}")
 
 if __name__ == "__main__":
     corr()

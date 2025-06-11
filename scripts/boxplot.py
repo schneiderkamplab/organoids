@@ -55,6 +55,7 @@ def boxplot(file, start, end, invert, top_limit, sorted, output, format, gender,
         plt.show()
     else:
         plt.savefig(output, format=format)
+        print(f"Saved to {output}")
 
 if __name__ == "__main__":
     boxplot()
