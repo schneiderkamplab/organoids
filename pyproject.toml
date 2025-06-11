@@ -26,7 +26,9 @@ dependencies = [
     'pandas',
     'shapely',
     'torch',
-    'torchvision',    'transformers',
+    'torchvision',
+    'transformers',
+    'zstandard',
 ]
 
 [project.urls]
