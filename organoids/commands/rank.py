@@ -26,7 +26,8 @@ def load_json(file_path):
 @click.option("--permutation", default=None, help="Permutation of labels as comma-separated list (default: None).")
 @click.option("--age-gender", default=None, help="Extra columns for age and gender as json mapping (default: None).")
 @click.option("--exclude", type=click.Path(), help="Exclude files as comma-separated list (default: None).")
-def rank(directory, output, ext, separator, id_separator, decimal_separator, permutation, age_gender, exclude):
+@click.option("--ensure-prefix", default=None, help="Ensure that id starts with this, adding if necessary (default: None).")
+def rank(directory, output, ext, separator, id_separator, decimal_separator, permutation, age_gender, exclude, ensure_prefix):
     if exclude is not None:
         exclude = exclude.split(",")
     start("Scanning for files")
@@ -87,6 +88,8 @@ def rank(directory, output, ext, separator, id_separator, decimal_separator, per
 
             # id from file name
             id = file.split("/")[-1].rsplit(id_separator, maxsplit=1)[0]
+            if ensure_prefix and not id.startswith(ensure_prefix):
+                id = f"{ensure_prefix}{id}"
 
             # list areas
             label2area = {int(poly['label']): poly['area'] for poly in poly_data}
