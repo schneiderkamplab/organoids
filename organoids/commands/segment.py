@@ -18,7 +18,7 @@ def _segment():
 @click.argument("file-or-directory", type=click.Path(exists=True), nargs=-1)
 @click.option("--model", default="facebook/sam-vit-base", help="Model to use for segmentation (default: facebook/sam-vit-base)")
 @click.option("--ext", default=".jpg", help="File extension to search for (default: .jpg)")
-@click.option("--viz", default=True, help="Visualize)")
+@click.option("--viz", default=False, help="Visualize)")
 @click.option("--pickle-ext", default=".pickle", help="File extension to save masks to (default: .pickle)")
 @click.option("--points-per-crop", default=60, help="Number of points per crop (default: 24)")
 @click.option("--device", default="cpu", help="Device to use for segmentation (cpu, mps, cuda) (default: cpu)")
